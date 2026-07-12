@@ -1,0 +1,54 @@
+// Pikachu — data model
+// Single-user MVP. SQLite has no array/JSON-array type, so list fields
+// (concepts, relatedConcepts, tags) are stored as JSON strings and parsed
+// in the app layer via src/lib/learning.ts.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Learning {
+  id          String   @id @default(cuid())
+
+  title       String
+  question    String
+  explanation String
+  summary     String   @default("")
+
+  // "claude" | "manual" | "vscode" | "github"
+  sourceType      String  @default("manual")
+  sourceReference String?
+
+  // Repository context (optional)
+  language    String?
+  repository  String?
+  filePath    String?
+  branch      String?
+  codeSnippet String?
+
+  // JSON-encoded string[] (parsed in app layer)
+  concepts        String @default("[]")
+  relatedConcepts String @default("[]")
+  tags            String @default("[]")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([repository])
+  @@index([sourceType])
+}
+
+// Explain result cache — keyed by sha256 of (version|model|provider|language|question|normalizedCode).
+// Prevents redundant AI calls for identical or whitespace-normalized snippets.
+model ExplainCache {
+  key        String   @id
+  resultJson String
+  hitCount   Int      @default(1)
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+}

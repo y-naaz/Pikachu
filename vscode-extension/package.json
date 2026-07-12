@@ -1,0 +1,115 @@
+{
+  "name": "pikachu",
+  "displayName": "Pikachu — Engineering Memory",
+  "description": "Explain & save code learnings directly from VS Code into your Pikachu knowledge base.",
+  "version": "0.1.0",
+  "publisher": "pikachu",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "pikachu.explainSelection",
+        "title": "Pikachu: Explain Selection",
+        "icon": "$(zap)"
+      },
+      {
+        "command": "pikachu.explainFile",
+        "title": "Pikachu: Explain File"
+      },
+      {
+        "command": "pikachu.openDashboard",
+        "title": "Pikachu: Open Dashboard"
+      },
+      {
+        "command": "pikachu.search",
+        "title": "Pikachu: Search Learnings"
+      },
+      {
+        "command": "pikachu.saveLastExplanation",
+        "title": "Pikachu: Save Last Explanation"
+      },
+      {
+        "command": "pikachu.copyLastSummary",
+        "title": "Pikachu: Copy Last Summary"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "pikachu.explainSelection",
+          "when": "editorHasSelection",
+          "group": "pikachu@1"
+        },
+        {
+          "command": "pikachu.explainFile",
+          "when": "!editorHasSelection",
+          "group": "pikachu@1"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "pikachu.explainSelection",
+          "when": "editorHasSelection",
+          "group": "navigation"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "pikachu.explainSelection",
+        "key": "ctrl+shift+p ctrl+shift+e",
+        "mac": "cmd+shift+e",
+        "when": "editorHasSelection"
+      }
+    ],
+    "configuration": {
+      "title": "Pikachu",
+      "properties": {
+        "pikachu.serverUrl": {
+          "type": "string",
+          "default": "http://localhost:3200",
+          "description": "URL of the running Pikachu Next.js server."
+        },
+        "pikachu.provider": {
+          "type": "string",
+          "enum": [
+            "claude",
+            "opencode"
+          ],
+          "default": "claude",
+          "description": "AI provider to use for explanations (claude or opencode)."
+        },
+        "pikachu.autoSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically save learnings after generating an explanation."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package",
+    "lint": "eslint src"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pikachu/pikachu"
+  },
+  "license": "MIT"
+}
