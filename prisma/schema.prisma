@@ -36,11 +36,19 @@ model Learning {
   relatedConcepts String @default("[]")
   tags            String @default("[]")
 
+  // Spaced repetition fields (SM-2 algorithm)
+  nextReview   DateTime?
+  reviewCount  Int      @default(0)
+  easeFactor   Float    @default(2.5)
+  interval     Int      @default(0)
+  lastReviewed DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([repository])
   @@index([sourceType])
+  @@index([nextReview])
 }
 
 // Explain result cache — keyed by sha256 of (version|model|provider|language|question|normalizedCode).

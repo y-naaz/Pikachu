@@ -48,6 +48,9 @@ Switch between them on the **Explain & Save** page using the provider toggle.
 | Dashboard           | Totals, top concepts, learning streak, recent learnings             |
 | Learnings           | List all learnings + add one manually                               |
 | Explain & Save      | Paste code/docs/a question → Claude generates a structured learning |
+| Import              | Import learnings from Claude Code session transcripts               |
+| Analyze             | Scan a codebase and extract reusable patterns and learnings         |
+| Review              | Spaced repetition review system for long-term retention             |
 | Search              | Fast full-text search (FTS5) across title/question/explanation/etc. |
 | Knowledge Explorer  | Learnings grouped by concept                                        |
 | Learning Details    | Question, explanation, summary, code, related concepts, repo context|
@@ -56,8 +59,8 @@ Switch between them on the **Explain & Save** page using the provider toggle.
 
 ```
 prisma/
-  schema.prisma           # Learning model (SQLite)
-  migrations/             # init + learning_fts (FTS5 virtual table + triggers)
+  schema.prisma           # Learning model (SQLite) with spaced repetition fields
+  migrations/             # init + learning_fts + explain_cache + spaced_repetition
 src/
   lib/
     prisma.ts             # PrismaClient singleton
@@ -65,13 +68,27 @@ src/
     learning.ts           # row <-> app conversion, list (de)serialization
     queries.ts            # all data access (list/get/create/search/stats/groups)
     claude.ts             # Claude API client for Explain & Save
+    opencode.ts           # OpenCode CLI client for Explain & Save
+    explain-cache.ts      # Explain result caching
+    import-transcript.ts  # Claude Code transcript parsing and import
+    repo-analysis.ts      # Repository analysis and pattern extraction
+    spaced-repetition.ts  # SM-2 spaced repetition algorithm
   app/
     api/learnings/        # GET list, POST create, GET/PATCH/DELETE [id]
     api/search/           # GET ?q=  (FTS5)
     api/explain/          # POST  (Claude → optional save)
+    api/import/           # GET list transcripts, POST import one/all
+    api/analyze/          # POST analyze a repository
+    api/review/           # GET due reviews, POST submit review
     page.tsx              # Dashboard
     learnings/            # list + [id] details
-    explain/ search/ explore/ settings/
+    explain/              # Explain & Save
+    import/               # Import Claude Code conversations
+    analyze/              # Repository analysis
+    review/               # Spaced repetition review
+    search/               # Full-text search
+    explore/              # Knowledge Explorer
+    settings/             # Settings
   components/             # ui.tsx, LearningCard, CreateLearningForm
 ```
 
@@ -87,5 +104,5 @@ src/
 
 ## Roadmap (not in MVP)
 
-~~Phase 2~~ ✅ VS Code extension (`vscode-extension/`) · Phase 3 Claude conversation import ·
-Phase 4 repository analysis · Phase 5 spaced-repetition retention.
+~~Phase 2~~ ✅ VS Code extension (`vscode-extension/`) · ~~Phase 3~~ ✅ Claude conversation import ·
+~~Phase 4~~ ✅ Repository analysis · ~~Phase 5~~ ✅ Spaced-repetition retention.
