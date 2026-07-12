@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getLearning } from "@/lib/queries";
 import { Badge, Card, ConceptTag } from "@/components/ui";
 import { Explanation } from "@/components/Explanation";
-import { CodeBlock } from "@/components/CodeBlock";
+import { CodeBlock } from "@/components/Markdown";
 import { DeleteLearningButton } from "@/components/DeleteLearningButton";
 
 export const dynamic = "force-dynamic";

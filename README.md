@@ -48,12 +48,11 @@ Switch between them on the **Explain & Save** page using the provider toggle.
 | Dashboard           | Totals, top concepts, learning streak, recent learnings             |
 | Learnings           | List all learnings + add one manually                               |
 | Explain & Save      | Paste code/docs/a question → Claude generates a structured learning |
-| Import              | Import learnings from Claude Code session transcripts               |
-| Analyze             | Scan a codebase and extract reusable patterns and learnings         |
 | Review              | Spaced repetition review system for long-term retention             |
 | Search              | Fast full-text search (FTS5) across title/question/explanation/etc. |
 | Knowledge Explorer  | Learnings grouped by concept                                        |
-| Learning Details    | Question, explanation, summary, code, related concepts, repo context|
+| Concept Graph       | Interactive visualization of concept connections                    |
+| Learning Details    | Rich markdown rendering with syntax highlighting                   |
 
 ## Project layout
 

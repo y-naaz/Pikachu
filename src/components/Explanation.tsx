@@ -1,4 +1,7 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useMemo } from "react";
+import { Markdown } from "./Markdown";
 
 // Explanations are stored as composed markdown:
 //   ## What is it?\n...\n\n## Why does it exist?\n...\n\n## How does it work?\n...
@@ -38,45 +41,14 @@ function parseSections(md: string): Sec[] {
   return secs.map((s) => ({ ...s, body: s.body.trim() }));
 }
 
-/** Render inline `code` spans inside a line of text. */
-function inline(text: string): ReactNode[] {
-  return text.split(/(`[^`]+`)/).map((part, i) => {
-    if (part.startsWith("`") && part.endsWith("`")) {
-      return (
-        <code
-          key={i}
-          className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[0.85em] text-accent"
-        >
-          {part.slice(1, -1)}
-        </code>
-      );
-    }
-    return <span key={i}>{part}</span>;
-  });
-}
-
-/** Split a section body into paragraphs (blank-line separated). */
-function paragraphs(body: string): ReactNode {
-  return body.split(/\n{2,}/).map((para, i) => (
-    <p key={i} className="text-[15px] leading-7 text-foreground/90">
-      {para.split("\n").map((ln, j) => (
-        <span key={j}>
-          {j > 0 && <br />}
-          {inline(ln)}
-        </span>
-      ))}
-    </p>
-  ));
-}
-
 export function Explanation({ markdown }: { markdown: string }) {
-  const sections = parseSections(markdown);
+  const sections = useMemo(() => parseSections(markdown), [markdown]);
 
   // Fallback: no headings found — render as a single readable block.
   if (sections.length === 0) {
     return (
       <div className="rounded-xl border border-border bg-surface p-5">
-        <div className="space-y-3">{paragraphs(markdown)}</div>
+        <Markdown content={markdown} />
       </div>
     );
   }
@@ -98,7 +70,9 @@ export function Explanation({ markdown }: { markdown: string }) {
                 {meta?.label ?? s.heading}
               </h3>
             </div>
-            <div className="space-y-3 px-5 py-4">{paragraphs(s.body)}</div>
+            <div className="px-5 py-4">
+              <Markdown content={s.body} />
+            </div>
           </div>
         );
       })}
