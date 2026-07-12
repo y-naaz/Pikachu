@@ -1,10 +1,21 @@
 import { prisma } from "./prisma";
 
+interface ConceptLearning {
+  id: string;
+  title: string;
+  summary: string;
+  language: string | null;
+  reviewCount: number;
+  nextReview: Date | null;
+}
+
 export interface GraphNode {
   id: string;
   label: string;
   count: number;
   language?: string | null;
+  learnings: ConceptLearning[];
+  relatedConcepts: string[];
 }
 
 export interface GraphEdge {
@@ -19,46 +30,76 @@ export interface GraphData {
   stats: {
     totalConcepts: number;
     totalConnections: number;
-    topLanguages: Array<{ language: string; count: number }>;
-    mostConnected: Array<{ concept: string; connections: number }>;
+    totalLearnings: number;
+    masteryPercent: number;
   };
 }
 
-/**
- * Build a concept graph with rich metadata for filtering and visualization.
- */
 export async function getConceptGraph(): Promise<GraphData> {
   const learnings = await prisma.learning.findMany({
-    select: { concepts: true, relatedConcepts: true, language: true },
+    select: {
+      id: true,
+      title: true,
+      summary: true,
+      language: true,
+      concepts: true,
+      relatedConcepts: true,
+      reviewCount: true,
+      nextReview: true,
+    },
   });
 
-  const conceptCount = new Map<string, number>();
-  const conceptLanguage = new Map<string, Map<string, number>>();
+  const conceptMap = new Map<string, {
+    count: number;
+    language: Map<string, number>;
+    learnings: ConceptLearning[];
+    relatedConcepts: Set<string>;
+  }>();
+
   const coOccurrence = new Map<string, number>();
-  const languageCount = new Map<string, number>();
 
   for (const l of learnings) {
     let concepts: string[];
-    try {
-      concepts = JSON.parse(l.concepts);
-    } catch {
-      concepts = [];
-    }
+    let related: string[];
+    try { concepts = JSON.parse(l.concepts); } catch { concepts = []; }
+    try { related = JSON.parse(l.relatedConcepts); } catch { related = []; }
     if (!Array.isArray(concepts) || concepts.length === 0) continue;
 
-    const lang = l.language || "unknown";
-    languageCount.set(lang, (languageCount.get(lang) ?? 0) + 1);
+    const learningPick: ConceptLearning = {
+      id: l.id,
+      title: l.title,
+      summary: l.summary,
+      language: l.language,
+      reviewCount: l.reviewCount,
+      nextReview: l.nextReview,
+    };
 
     for (const c of concepts) {
       const key = c.toLowerCase().trim();
       if (!key) continue;
-      conceptCount.set(key, (conceptCount.get(key) ?? 0) + 1);
+      if (!conceptMap.has(key)) {
+        conceptMap.set(key, { count: 0, language: new Map(), learnings: [], relatedConcepts: new Set() });
+      }
+      const entry = conceptMap.get(key)!;
+      entry.count++;
+      entry.learnings.push(learningPick);
 
-      if (!conceptLanguage.has(key)) conceptLanguage.set(key, new Map());
-      const langMap = conceptLanguage.get(key)!;
-      langMap.set(lang, (langMap.get(lang) ?? 0) + 1);
+      const lang = l.language || "unknown";
+      entry.language.set(lang, (entry.language.get(lang) ?? 0) + 1);
+
+      // Add related concepts from this learning
+      for (const r of related) {
+        const rk = r.toLowerCase().trim();
+        if (rk && rk !== key) entry.relatedConcepts.add(rk);
+      }
+      // Also add other concepts from same learning as related
+      for (const other of concepts) {
+        const ok = other.toLowerCase().trim();
+        if (ok && ok !== key) entry.relatedConcepts.add(ok);
+      }
     }
 
+    // Co-occurrence edges
     for (let i = 0; i < concepts.length; i++) {
       for (let j = i + 1; j < concepts.length; j++) {
         const a = concepts[i].toLowerCase().trim();
@@ -70,25 +111,30 @@ export async function getConceptGraph(): Promise<GraphData> {
     }
   }
 
-  // Build nodes — all concepts, let the UI filter
+  // Build nodes
   const nodes: GraphNode[] = [];
-  for (const [label, count] of conceptCount) {
-    // Find dominant language
-    const langMap = conceptLanguage.get(label);
+  for (const [id, data] of conceptMap) {
     let dominantLang: string | null = null;
     let maxCount = 0;
-    if (langMap) {
-      for (const [l, c] of langMap) {
-        if (c > maxCount) {
-          maxCount = c;
-          dominantLang = l;
-        }
-      }
+    for (const [l, c] of data.language) {
+      if (c > maxCount && l !== "unknown") { maxCount = c; dominantLang = l; }
     }
-    nodes.push({ id: label, label, count, language: dominantLang });
+
+    // Pick related concepts that actually exist in our graph
+    const relatedInGraph = [...data.relatedConcepts]
+      .filter((r) => conceptMap.has(r))
+      .slice(0, 8);
+
+    nodes.push({
+      id,
+      label: id,
+      count: data.count,
+      language: dominantLang,
+      learnings: data.learnings,
+      relatedConcepts: relatedInGraph,
+    });
   }
 
-  // Sort by count descending
   nodes.sort((a, b) => b.count - a.count);
 
   const nodeIds = new Set(nodes.map((n) => n.id));
@@ -101,22 +147,11 @@ export async function getConceptGraph(): Promise<GraphData> {
     }
   }
 
-  // Compute stats
-  const connectionCount = new Map<string, number>();
-  for (const e of edges) {
-    connectionCount.set(e.source, (connectionCount.get(e.source) ?? 0) + 1);
-    connectionCount.set(e.target, (connectionCount.get(e.target) ?? 0) + 1);
-  }
-
-  const mostConnected = [...connectionCount.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([concept, connections]) => ({ concept, connections }));
-
-  const topLanguages = [...languageCount.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([language, count]) => ({ language, count }));
+  // Mastery: % of learnings that have been reviewed at least once
+  const reviewed = learnings.filter((l) => l.reviewCount > 0).length;
+  const masteryPercent = learnings.length > 0
+    ? Math.round((reviewed / learnings.length) * 100)
+    : 0;
 
   return {
     nodes,
@@ -124,8 +159,8 @@ export async function getConceptGraph(): Promise<GraphData> {
     stats: {
       totalConcepts: nodes.length,
       totalConnections: edges.length,
-      topLanguages,
-      mostConnected,
+      totalLearnings: learnings.length,
+      masteryPercent,
     },
   };
 }
