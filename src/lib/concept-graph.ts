@@ -3,31 +3,39 @@ import { prisma } from "./prisma";
 export interface GraphNode {
   id: string;
   label: string;
-  count: number; // how many learnings reference this concept
+  count: number;
+  language?: string | null;
 }
 
 export interface GraphEdge {
   source: string;
   target: string;
-  weight: number; // how many learnings share both concepts
+  weight: number;
+}
+
+export interface GraphData {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  stats: {
+    totalConcepts: number;
+    totalConnections: number;
+    topLanguages: Array<{ language: string; count: number }>;
+    mostConnected: Array<{ concept: string; connections: number }>;
+  };
 }
 
 /**
- * Build a concept graph: nodes are concepts, edges connect concepts
- * that appear together in the same learning.
+ * Build a concept graph with rich metadata for filtering and visualization.
  */
-export async function getConceptGraph(): Promise<{
-  nodes: GraphNode[];
-  edges: GraphEdge[];
-}> {
+export async function getConceptGraph(): Promise<GraphData> {
   const learnings = await prisma.learning.findMany({
-    select: { concepts: true, relatedConcepts: true },
+    select: { concepts: true, relatedConcepts: true, language: true },
   });
 
-  // Count concept frequency
   const conceptCount = new Map<string, number>();
-  // Count co-occurrence
+  const conceptLanguage = new Map<string, Map<string, number>>();
   const coOccurrence = new Map<string, number>();
+  const languageCount = new Map<string, number>();
 
   for (const l of learnings) {
     let concepts: string[];
@@ -38,14 +46,19 @@ export async function getConceptGraph(): Promise<{
     }
     if (!Array.isArray(concepts) || concepts.length === 0) continue;
 
-    // Count each concept
+    const lang = l.language || "unknown";
+    languageCount.set(lang, (languageCount.get(lang) ?? 0) + 1);
+
     for (const c of concepts) {
       const key = c.toLowerCase().trim();
       if (!key) continue;
       conceptCount.set(key, (conceptCount.get(key) ?? 0) + 1);
+
+      if (!conceptLanguage.has(key)) conceptLanguage.set(key, new Map());
+      const langMap = conceptLanguage.get(key)!;
+      langMap.set(lang, (langMap.get(lang) ?? 0) + 1);
     }
 
-    // Count co-occurrence pairs
     for (let i = 0; i < concepts.length; i++) {
       for (let j = i + 1; j < concepts.length; j++) {
         const a = concepts[i].toLowerCase().trim();
@@ -57,26 +70,29 @@ export async function getConceptGraph(): Promise<{
     }
   }
 
-  // Build nodes (only concepts appearing >= 2 times for a cleaner graph)
+  // Build nodes — all concepts, let the UI filter
   const nodes: GraphNode[] = [];
   for (const [label, count] of conceptCount) {
-    if (count >= 2) {
-      nodes.push({ id: label, label, count });
-    }
-  }
-
-  // If fewer than 3 nodes with count >= 2, include singletons
-  if (nodes.length < 3) {
-    for (const [label, count] of conceptCount) {
-      if (count === 1 && nodes.length < 30) {
-        nodes.push({ id: label, label, count });
+    // Find dominant language
+    const langMap = conceptLanguage.get(label);
+    let dominantLang: string | null = null;
+    let maxCount = 0;
+    if (langMap) {
+      for (const [l, c] of langMap) {
+        if (c > maxCount) {
+          maxCount = c;
+          dominantLang = l;
+        }
       }
     }
+    nodes.push({ id: label, label, count, language: dominantLang });
   }
+
+  // Sort by count descending
+  nodes.sort((a, b) => b.count - a.count);
 
   const nodeIds = new Set(nodes.map((n) => n.id));
 
-  // Build edges (only between nodes in our set)
   const edges: GraphEdge[] = [];
   for (const [key, weight] of coOccurrence) {
     const [a, b] = key.split("||");
@@ -85,5 +101,31 @@ export async function getConceptGraph(): Promise<{
     }
   }
 
-  return { nodes, edges };
+  // Compute stats
+  const connectionCount = new Map<string, number>();
+  for (const e of edges) {
+    connectionCount.set(e.source, (connectionCount.get(e.source) ?? 0) + 1);
+    connectionCount.set(e.target, (connectionCount.get(e.target) ?? 0) + 1);
+  }
+
+  const mostConnected = [...connectionCount.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([concept, connections]) => ({ concept, connections }));
+
+  const topLanguages = [...languageCount.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([language, count]) => ({ language, count }));
+
+  return {
+    nodes,
+    edges,
+    stats: {
+      totalConcepts: nodes.length,
+      totalConnections: edges.length,
+      topLanguages,
+      mostConnected,
+    },
+  };
 }
